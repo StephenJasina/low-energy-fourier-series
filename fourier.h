@@ -59,7 +59,7 @@ class FourierSeries {
 
   // Returns the square of the Frobenius norm of the difference between the
   // identity matrix and half of the outer product integral.
-  long double matrix_norm() const;
+  long double e_mat() const;
 
   // Returns the Hessian of the series at a point. Since the series is assumed
   // to be real-valued, the Hessian is evaluated and then the real part is

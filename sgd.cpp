@@ -122,7 +122,7 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
         ddq_mat += mat_multiplier.imag() * ((j.second <= 0) - (j.second >= 0));
         ddr_mat += mat_multiplier.imag() * ((j.first <= 0) - (j.first >= 0));
         dds_mat += mat_multiplier.real() *
-                  ((j.first * j.second <= 0) - (j.first * j.second >= 0));
+                   ((j.first * j.second <= 0) - (j.first * j.second >= 0));
       }
 
       // Calculate the actual derivatives
@@ -192,8 +192,8 @@ void sgd(FourierSeries &series, bool verbose = false, long double max_e = 2,
   auto keys = series.keys();
   auto non_neg_keys = series.non_neg_keys();
 
-  long double eta_divisor = initial,
-              e = series.e_stretch() + series.matrix_norm(), best_e = e;
+  long double eta_divisor = initial, e = series.e_stretch() + series.e_mat(),
+              best_e = e;
 
   unsigned consecutive_correct = 0;
 
@@ -208,12 +208,11 @@ void sgd(FourierSeries &series, bool verbose = false, long double max_e = 2,
 
     sgd_step(series, keys, non_neg_keys, eta_divisor);
 
-    long double e_stretch = series.e_stretch(),
-                matrix_norm = series.matrix_norm();
+    long double e_stretch = series.e_stretch(), matrix_norm = series.e_mat();
     e = e_stretch + matrix_norm;
 
     if (verbose) {
-      cout << "E_stretch = " << e_stretch << "\nMatrix norm = " << matrix_norm
+      cout << "E_stretch = " << e_stretch << "\nE_mat = " << matrix_norm
            << "\nSum = " << e << '\n'
            << endl;
     }
@@ -270,10 +269,10 @@ int main(int argc, char **argv) {
   for (size_t i = 0; i != 80; ++i) cout << '=';
   cout << endl;
 
+  long double e_stretch = series.e_stretch(), e_mat = series.e_mat();
   cout << "Final results:" << endl;
-  cout << "\tE_stretch = " << series.e_stretch()
-       << "\n\tMatrix norm = " << series.matrix_norm()
-       << "\n\tsum = " << series.e_stretch() + series.matrix_norm() << endl
+  cout << "\tE_stretch = " << e_stretch << "\n\tE_mat = " << e_mat
+       << "\n\tsum = " << e_stretch + e_mat << endl
        << endl;
   // cout << series << endl;
 

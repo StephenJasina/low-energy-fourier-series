@@ -133,7 +133,7 @@ vector<vector<long double> > FourierSeries::outer_product_integral() const {
   return m;
 }
 
-long double FourierSeries::matrix_norm() const {
+long double FourierSeries::e_mat() const {
   auto m = this->outer_product_integral();
 
   // We take slight advantage of the fact that the matrix m is symmetric.
