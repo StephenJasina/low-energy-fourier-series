@@ -153,12 +153,12 @@ vector<vector<long double> > FourierSeries::hessian(
   // First calculate the summations...
   for (auto it = this->coefficients.cbegin(); it != this->coefficients.cend();
        ++it) {
-    h_complex[0][0] += (long double)(pow(it->first.first, 2)) * it->second *
-                       exp(2 * PI * I * dot(it->first, x));
+    h_complex[0][0] += (long double)(it->first.first * it->first.first) *
+                       it->second * exp(2 * PI * I * dot(it->first, x));
     h_complex[0][1] += (long double)(it->first.first) * it->first.second *
                        it->second * exp(2 * PI * I * dot(it->first, x));
-    h_complex[1][1] += (long double)(pow(it->first.second, 2)) * it->second *
-                       exp(2 * PI * I * dot(it->first, x));
+    h_complex[1][1] += (long double)(it->first.second * it->first.second) *
+                       it->second * exp(2 * PI * I * dot(it->first, x));
   }
 
   // ... then multiply by the appropriate leading constants, and take the real
@@ -196,7 +196,7 @@ complex<long double> FourierSeries::hessian_determinant_coefficient(
     }
   }
 
-  return 16 * pow(PI, 4) * coefficient;
+  return 16 * PI * PI * PI * PI * coefficient;
 }
 
 long double FourierSeries::e_stretch() const {
@@ -226,7 +226,7 @@ long double FourierSeries::e_stretch() const {
     }
   }
 
-  return 16 * pow(PI, 4) * e;
+  return 16 * PI * PI * PI * PI * e;
 }
 
 long double FourierSeries::e_bend() const {
@@ -238,7 +238,7 @@ long double FourierSeries::e_bend() const {
          dot(it->first, it->first);
   }
 
-  return 16 * pow(PI, 4) * e;
+  return 16 * PI * PI * PI * PI * e;
 }
 
 unordered_map<pair<int, int>, complex<long double>, FourierSeries::pair_hash>

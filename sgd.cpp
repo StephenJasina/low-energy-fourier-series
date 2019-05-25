@@ -1,9 +1,7 @@
 #include <algorithm>
 #include <complex>
-#include <cstdlib>
 #include <fstream>
 #include <iostream>
-#include <string>
 #include <unordered_map>
 #include <utility>
 
@@ -140,7 +138,7 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
 
     // Find the largest magnitude of the partial derivatives, or 1 if all
     // derivatives are smaller.
-    max_derivative = 1;
+    max_derivative = 0.05;
     for (auto it = derivatives.cbegin(); it != derivatives.cend(); ++it) {
       for (size_t i = 0; i != 4; ++i) {
         if (abs(it->second[i]) > max_derivative) {
@@ -178,7 +176,7 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
       if (z.first != 0 && z.second != 0) {
         series.coefficients[zmm] -=
             eta * complex<long double>(ddp - dds, ddq + ddr) / (long double)(4);
-      };
+      }
     }
   }
 }
