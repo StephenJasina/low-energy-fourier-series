@@ -37,33 +37,33 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
     // This quantity will be used to figure out how large of a step to take.
     long double max_derivative;
 
-    // Each op_multiplier# is to contain the value of a summation that appears
+    // Each mat_multiplier# is to contain the value of a summation that appears
     // in every derivative of the outer product norm. Essentially, they are
     // calculated here to avoid having to recalculate the same value for every z
     // and for every derivative.
-    long double op_multiplier1 = 0, op_multiplier2 = 0, op_multiplier3 = 0;
+    long double mat_multiplier1 = 0, mat_multiplier2 = 0, mat_multiplier3 = 0;
     for (auto it = series.coefficients.cbegin();
          it != series.coefficients.end(); ++it) {
-      op_multiplier1 += it->first.first * it->first.first * norm(it->second);
-      op_multiplier2 += it->first.first * it->first.second * norm(it->second);
-      op_multiplier3 += it->first.second * it->first.second * norm(it->second);
+      mat_multiplier1 += it->first.first * it->first.first * norm(it->second);
+      mat_multiplier2 += it->first.first * it->first.second * norm(it->second);
+      mat_multiplier3 += it->first.second * it->first.second * norm(it->second);
     }
-    op_multiplier1 = PI * PI * (2 * PI * PI * op_multiplier1 - 1) / 2;
-    op_multiplier2 = 2 * PI * PI * PI * PI * op_multiplier2;
-    op_multiplier3 = PI * PI * (2 * PI * PI * op_multiplier3 - 1) / 2;
+    mat_multiplier1 = PI * PI * (2 * PI * PI * mat_multiplier1 - 1) / 2;
+    mat_multiplier2 = 2 * PI * PI * PI * PI * mat_multiplier2;
+    mat_multiplier3 = PI * PI * (2 * PI * PI * mat_multiplier3 - 1) / 2;
 
     // This loop calculates the derivatives of our objective function with
     // respect to p_z, q_z, r_z, and s_z for every valid choice of z.
     for (const auto &z : non_neg_keys) {
       // Contribution to the derivatives due to the outer product norm.
-      long double ddp_op = 0, ddq_op = 0, ddr_op = 0, dds_op = 0;
+      long double ddp_mat = 0, ddq_mat = 0, ddr_mat = 0, dds_mat = 0;
 
       // Contribution to the derivatives due to E_stretch.
       long double ddp_stretch = 0, ddq_stretch = 0, ddr_stretch = 0,
                   dds_stretch = 0;
 
       // Auxillary variables to make notation better. The last two letters refer
-      // to (p)lus and (m)inus, and are read top coordinate then bottom
+      // to (p)lus and (m)inus and are read top coordinate then bottom
       // coordinate.
       pair<int, int> zpp = z, zpm = pair<int, int>(z.first, -z.second),
                      zmp = pair<int, int>(-z.first, z.second),
@@ -86,12 +86,12 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
       }
 
       for (const auto &j : zs) {
-        complex<long double> op_multiplier =
-                                 (op_multiplier1 * j.first * j.first +
-                                  op_multiplier2 * j.first * j.second +
-                                  op_multiplier3 * j.second * j.second) *
-                                 series.coefficients[j],
-                             stretch_multiplier = 0;
+        complex<long double> stretch_multiplier = 0,
+                             mat_multiplier =
+                                 (mat_multiplier1 * j.first * j.first +
+                                  mat_multiplier2 * j.first * j.second +
+                                  mat_multiplier3 * j.second * j.second) *
+                                 series.coefficients[j];
 
         // This check is necessary since we don't want to accidentally increase
         // the size of the unordered_map coefficients.
@@ -108,32 +108,28 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
                                                       k.second - j.second)]);
         }
 
-        // Calculate the outer product derivatives.
-        ddp_op += op_multiplier.real();
-        ddq_op += op_multiplier.imag() * ((j.second <= 0) - (j.second >= 0));
-        ddr_op += op_multiplier.imag() * ((j.first <= 0) - (j.first >= 0));
-        dds_op += op_multiplier.real() *
-                  ((j.first * j.second <= 0) - (j.first * j.second >= 0));
-
         // Calculate the E_stretch derivatives.
         ddp_stretch += stretch_multiplier.real();
-        ddq_stretch += (stretch_multiplier *
-                        (long double)((j.second <= 0) - (j.second >= 0)))
-                           .imag();
-        ddr_stretch += (stretch_multiplier *
-                        (long double)((j.first <= 0) - (j.first >= 0)))
-                           .imag();
-        dds_stretch +=
-            (stretch_multiplier * (long double)((j.first * j.second <= 0) -
-                                                (j.first * j.second >= 0)))
-                .real();
+        ddq_stretch +=
+            stretch_multiplier.imag() * ((j.second <= 0) - (j.second >= 0));
+        ddr_stretch +=
+            stretch_multiplier.imag() * ((j.first <= 0) - (j.first >= 0));
+        dds_stretch += stretch_multiplier.real() *
+                       ((j.first * j.second <= 0) - (j.first * j.second >= 0));
+
+        // Calculate the outer product derivatives.
+        ddp_mat += mat_multiplier.real();
+        ddq_mat += mat_multiplier.imag() * ((j.second <= 0) - (j.second >= 0));
+        ddr_mat += mat_multiplier.imag() * ((j.first <= 0) - (j.first >= 0));
+        dds_mat += mat_multiplier.real() *
+                  ((j.first * j.second <= 0) - (j.first * j.second >= 0));
       }
 
       // Calculate the actual derivatives
-      derivatives[z][0] = ddp_stretch + ddp_op;
-      derivatives[z][1] = ddq_stretch + ddq_op;
-      derivatives[z][2] = ddr_stretch + ddr_op;
-      derivatives[z][3] = dds_stretch + dds_op;
+      derivatives[z][0] = ddp_stretch + ddp_mat;
+      derivatives[z][1] = ddq_stretch + ddq_mat;
+      derivatives[z][2] = ddr_stretch + ddr_mat;
+      derivatives[z][3] = dds_stretch + dds_mat;
     }
 
     // Find the largest magnitude of the partial derivatives, or 1 if all
