@@ -24,6 +24,10 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
   random_shuffle(keys.begin(), keys.end());
 
   for (const auto &k : keys) {
+    if (k.first == 0 && k.second == 0) {
+      continue;
+    }
+
     complex<long double> hess_det_coef =
         series.hessian_determinant_coefficient(k);
 
@@ -97,9 +101,11 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
                 pair<int, int>(k.first - j.first, k.second - j.second))) {
           stretch_multiplier =
               (long double)(k.first * j.second - k.second * j.first) *
-              (k.first * j.second - k.second * j.first) / 2 /
-              (k.first * k.first + k.second * k.second) *
-              (k.first * k.first + k.second * k.second) * hess_det_coef *
+              (k.first * j.second - k.second * j.first) *
+              series.coefficients.size() /
+              (2 * (k.first * k.first + k.second * k.second) *
+               (k.first * k.first + k.second * k.second)) *
+              hess_det_coef *
               conj(series.coefficients[pair<int, int>(k.first - j.first,
                                                       k.second - j.second)]);
         }
@@ -126,10 +132,10 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
       }
 
       // Calculate the actual derivatives
-      derivatives[z][0] = ddp_stretch * series.coefficients.size() + ddp_op;
-      derivatives[z][1] = ddq_stretch * series.coefficients.size() + ddq_op;
-      derivatives[z][2] = ddr_stretch * series.coefficients.size() + ddr_op;
-      derivatives[z][3] = dds_stretch * series.coefficients.size() + dds_op;
+      derivatives[z][0] = ddp_stretch + ddp_op;
+      derivatives[z][1] = ddq_stretch + ddq_op;
+      derivatives[z][2] = ddr_stretch + ddr_op;
+      derivatives[z][3] = dds_stretch + dds_op;
     }
 
     // Find the largest magnitude of the partial derivatives, or 1 if all
@@ -183,7 +189,7 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
 // The variable initial is the beginning value of eta_divisor. The variable
 // initial is how much to multiply (divide) eta_divisor by when the current
 // value is doing poorly (well).
-void sgd(FourierSeries &series, bool verbose = false, long double max_e = 1,
+void sgd(FourierSeries &series, bool verbose = false, long double max_e = 2,
          long double initial = 10, long double multiplier = 1.1) {
   auto best_coefficients = series.coefficients;
 
@@ -243,7 +249,7 @@ int main(int argc, char **argv) {
       coefficients;
   long double e_max, rho1, rho2;
 
-  if (argc == 0) {
+  if (argc == 1) {
     rho1 = 10;
     rho2 = 20;
     e_max = 2;
@@ -254,7 +260,7 @@ int main(int argc, char **argv) {
   } else if (argc == 3) {
     rho1 = stold(argv[1]);
     rho2 = stold(argv[2]);
-    e_max = 1;
+    e_max = 2;
   } else {
     cout << "Usage: " << endl;
     exit(1);
