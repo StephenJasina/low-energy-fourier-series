@@ -116,9 +116,9 @@ vector<vector<long double> > FourierSeries::outer_product_integral() const {
   // First calculate the summations...
   for (auto it = this->coefficients.cbegin(); it != this->coefficients.cend();
        ++it) {
-    m[0][0] += pow(it->first.first, 2) * norm(it->second);
+    m[0][0] += it->first.first * it->first.first * norm(it->second);
     m[0][1] += it->first.first * it->first.second * norm(it->second);
-    m[1][1] += pow(it->first.second, 2) * norm(it->second);
+    m[1][1] += it->first.second * it->first.second * norm(it->second);
   }
 
   // ... then multiply by the appropriate leading constants.
@@ -162,7 +162,7 @@ vector<vector<long double> > FourierSeries::hessian(
   }
 
   // ... then multiply by the appropriate leading constants, and take the real
-  // parts.
+  // parts. Note that the imaginary parts are (or at least, should be) 0.
   h[0][0] = -4 * PI * PI * h_complex[0][0].real();
   h[0][1] = -4 * PI * PI * h_complex[0][1].real();
   h[1][1] = -4 * PI * PI * h_complex[1][1].real();
@@ -218,7 +218,7 @@ long double FourierSeries::e_stretch() const {
     }
   }
 
-  // Next, combine these values ot find e
+  // Next, combine these values to find e.
   for (auto it = summands.cbegin(); it != summands.cend(); ++it) {
     if (it->first.first != 0 || it->first.second != 0) {
       e += norm(it->second) /
@@ -251,7 +251,7 @@ FourierSeries::random_coefficients(unsigned rho1, unsigned rho2) {
     for (int k2 = 0; k2 != rho2; ++k2) {
       // Small tolerances have been put in to ensure that every coefficient one
       // would expect to have a value does indeed have a value (as there is a
-      // chance for ssmall rounding error with long doubles).
+      // chance for small rounding error with long doubles).
       if (rho1 * rho1 - 0.0001 <= k1 * k1 + k2 * k2 &&
           k1 * k1 + k2 * k2 <= rho2 * rho2 + 0.0001) {
         double p = normal(twister), q = normal(twister), r = normal(twister),

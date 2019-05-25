@@ -47,7 +47,7 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
       op_multiplier3 += it->first.second * it->first.second * norm(it->second);
     }
     op_multiplier1 = PI * PI * (2 * PI * PI * op_multiplier1 - 1) / 2;
-    op_multiplier2 = 4 * PI * PI * PI * PI * op_multiplier2;
+    op_multiplier2 = 2 * PI * PI * PI * PI * op_multiplier2;
     op_multiplier3 = PI * PI * (2 * PI * PI * op_multiplier3 - 1) / 2;
 
     // This loop calculates the derivatives of our objective function with
@@ -108,7 +108,7 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
         ddp_op += op_multiplier.real();
         ddq_op += op_multiplier.imag() * ((j.second <= 0) - (j.second >= 0));
         ddr_op += op_multiplier.imag() * ((j.first <= 0) - (j.first >= 0));
-        dds_op += op_multiplier.imag() *
+        dds_op += op_multiplier.real() *
                   ((j.first * j.second <= 0) - (j.first * j.second >= 0));
 
         // Calculate the E_stretch derivatives.
@@ -272,9 +272,10 @@ int main(int argc, char **argv) {
 
   cout << "Final results:" << endl;
   cout << "\tE_stretch = " << series.e_stretch()
-       << "\n\tMatrix norm = " << series.matrix_norm() << endl
+       << "\n\tMatrix norm = " << series.matrix_norm()
+       << "\n\tsum = " << series.e_stretch() + series.matrix_norm() << endl
        << endl;
-  cout << series << endl;
+  // cout << series << endl;
 
   ofs.open("coefficients_" + to_string(rho1) + "_" + to_string(rho2) + ".txt");
   ofs << series << endl;
