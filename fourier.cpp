@@ -190,9 +190,10 @@ complex<long double> FourierSeries::hessian_determinant_coefficient(
     auto other =
         pair<int, int>(k.first - it->first.first, k.second - it->first.second);
     if (coefficients.count(other)) {
-      coefficient += (long double)it->first.second * other.first *
-                     (k.first * it->first.second - k.second * it->first.first) *
-                     it->second * coefficients.at(other);
+      coefficient +=
+          (long double)other.first * it->first.second *
+          (other.first * it->first.second - other.second * it->first.first) *
+          it->second * coefficients.at(other);
     }
   }
 

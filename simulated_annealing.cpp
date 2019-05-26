@@ -24,7 +24,7 @@ void simulated_annealing(unordered_map<pair<int, int>, complex<long double>,
   auto &best_coefficients = coefficients;
   auto best_series = FourierSeries(best_coefficients);
   long double best_e =
-      best_series.e_stretch() + c_norm * best_series.matrix_norm();
+      best_series.e_stretch() + c_norm * best_series.e_mat();
 
   vector<pair<int, int> > non_neg_keys = best_series.non_neg_keys();
 
@@ -55,11 +55,11 @@ void simulated_annealing(unordered_map<pair<int, int>, complex<long double>,
 
     auto new_series = FourierSeries(new_coefficients);
     long double new_e =
-        new_series.e_stretch() + c_norm * new_series.matrix_norm();
+        new_series.e_stretch() + c_norm * new_series.e_mat();
 
     if (verbose) {
       // cout << "T = " << T << ":\t"
-      cout << best_series.e_stretch() << '\t' << best_series.matrix_norm()
+      cout << best_series.e_stretch() << '\t' << best_series.e_mat()
            << endl;
     }
 
@@ -72,11 +72,11 @@ void simulated_annealing(unordered_map<pair<int, int>, complex<long double>,
 }
 
 int main() {
-  auto coefficients = FourierSeries::random_coefficients(1, 10);
+  auto coefficients = FourierSeries::random_coefficients(6, 8);
   simulated_annealing(coefficients, 1, 40 * coefficients.size(), true);
   auto series = FourierSeries(coefficients);
 
   cout << series.e_stretch() << endl;
-  cout << series.matrix_norm() << endl;
+  cout << series.e_mat() << endl;
   cout << series << endl;
 }
