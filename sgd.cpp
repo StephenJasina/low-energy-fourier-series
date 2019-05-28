@@ -139,11 +139,11 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
       long double &ddr = derivatives[z][0], &dds = derivatives[z][1];
 
       series.coefficients[z] -=
-          eta * complex<long double>(ddr, dds) / (long double)(4);
+          eta * complex<long double>(ddr, dds) / (long double)(2);
 
       if (z.first != 0 || z.second != 0) {
         series.coefficients[neg_z] -=
-            eta * complex<long double>(ddr, -dds) / (long double)(4);
+            eta * complex<long double>(ddr, -dds) / (long double)(2);
       }
     }
   }
