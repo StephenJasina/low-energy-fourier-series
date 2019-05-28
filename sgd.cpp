@@ -15,8 +15,8 @@ const long double PI = 3.14159265358979323846L;
 // coefficients is changed. eta_divisor controls how large of a step to take (a
 // larger value means a smaller step).
 void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
-              const vector<pair<int, int> > &non_neg_keys,
-              long double eta_divisor = 10) {
+              const vector<pair<int, int> > &non_neg_keys, long double h,
+              long double p, long double eta_divisor = 10) {
   long double eta;
 
   random_shuffle(keys.begin(), keys.end());
@@ -58,12 +58,15 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
     // This loop calculates the derivatives of our objective function with
     // respect to p_z, q_z, r_z, and s_z for every valid choice of z.
     for (const auto &z : non_neg_keys) {
-      // Contribution to the derivatives due to the outer product norm.
-      long double ddp_mat = 0, ddq_mat = 0, ddr_mat = 0, dds_mat = 0;
-
       // Contribution to the derivatives due to E_stretch.
       long double ddp_stretch = 0, ddq_stretch = 0, ddr_stretch = 0,
                   dds_stretch = 0;
+
+      // Contribution to the derivatives due to norms.
+      long double ddp_mat = 0, ddq_mat = 0, ddr_mat = 0, dds_mat = 0;
+      long double ddp_bend = 0, ddq_bend = 0, ddr_bend = 0, dds_bend = 0;
+      long double ddp_height = 0, ddq_height = 0, ddr_height = 0,
+                  dds_height = 0;
 
       // Auxillary variables to make notation better. The last two letters refer
       // to (p)lus and (m)inus and are read top coordinate then bottom
@@ -94,7 +97,14 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
                                  (mat_multiplier1 * j.first * j.first +
                                   mat_multiplier2 * j.first * j.second +
                                   mat_multiplier3 * j.second * j.second) *
-                                 series.coefficients[j];
+                                 series.coefficients[j],
+                             bend_multiplier =
+                                 2 * PI * PI * PI * PI * h * h *
+                                 (j.first * j.first + j.second * j.second) *
+                                 (j.first * j.first + j.second * j.second) *
+                                 series.coefficients[j],
+                             height_multiplier =
+                                 pow(h, -p) * series.coefficients[j];
 
         // This check is necessary since we don't want to accidentally increase
         // the size of the unordered_map coefficients.
@@ -116,19 +126,36 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
         dds_stretch += stretch_multiplier.real() *
                        ((j.first * j.second <= 0) - (j.first * j.second >= 0));
 
-        // Calculate the outer product derivatives.
+        // Calculate the E_mat derivatives.
         ddp_mat += mat_multiplier.real();
         ddq_mat += mat_multiplier.imag() * ((j.second <= 0) - (j.second >= 0));
         ddr_mat += mat_multiplier.imag() * ((j.first <= 0) - (j.first >= 0));
         dds_mat += mat_multiplier.real() *
                    ((j.first * j.second <= 0) - (j.first * j.second >= 0));
+
+        // Calculate E_bend derivatives.
+        ddp_bend += bend_multiplier.real();
+        ddq_bend +=
+            bend_multiplier.imag() * ((j.second <= 0) - (j.second >= 0));
+        ddr_bend += bend_multiplier.imag() * ((j.first <= 0) - (j.first >= 0));
+        dds_bend += bend_multiplier.real() *
+                    ((j.first * j.second <= 0) - (j.first * j.second >= 0));
+
+        // Calculate E_height derivatives.
+        ddp_height += height_multiplier.real();
+        ddq_height +=
+            height_multiplier.imag() * ((j.second <= 0) - (j.second >= 0));
+        ddr_height +=
+            height_multiplier.imag() * ((j.first <= 0) - (j.first >= 0));
+        dds_height += height_multiplier.real() *
+                      ((j.first * j.second <= 0) - (j.first * j.second >= 0));
       }
 
       // Calculate the actual derivatives
-      derivatives[z][0] = ddp_stretch + ddp_mat;
-      derivatives[z][1] = ddq_stretch + ddq_mat;
-      derivatives[z][2] = ddr_stretch + ddr_mat;
-      derivatives[z][3] = dds_stretch + dds_mat;
+      derivatives[z][0] = ddp_stretch + ddp_mat + ddp_bend + ddp_height;
+      derivatives[z][1] = ddq_stretch + ddq_mat + ddq_bend + ddq_height;
+      derivatives[z][2] = ddr_stretch + ddr_mat + ddr_bend + ddr_height;
+      derivatives[z][3] = dds_stretch + dds_mat + dds_bend + dds_height;
     }
 
     // Find the largest magnitude of the partial derivatives, or 1 if all
@@ -182,8 +209,9 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
 // The variable initial is the beginning value of eta_divisor. The variable
 // initial is how much to multiply (divide) eta_divisor by when the current
 // value is doing poorly (well).
-void sgd(FourierSeries &series, bool verbose = false, long double max_e = 2,
-         long double initial = 10, long double multiplier = 1.1) {
+void sgd(FourierSeries &series, long double h, long double p,
+         bool verbose = false, long double max_e = 2, long double initial = 10,
+         long double multiplier = 1.1) {
   auto best_coefficients = series.coefficients;
 
   // These key lists are made here so that we don't have to recreate them every
@@ -205,15 +233,16 @@ void sgd(FourierSeries &series, bool verbose = false, long double max_e = 2,
       cout << "eta_divisor = " << eta_divisor << '\n';
     }
 
-    sgd_step(series, keys, non_neg_keys, eta_divisor);
+    sgd_step(series, keys, non_neg_keys, h, p, eta_divisor);
 
-    long double e_stretch = series.e_stretch(), matrix_norm = series.e_mat();
-    e = e_stretch + matrix_norm;
+    long double e_stretch = series.e_stretch(), e_mat = series.e_mat(),
+                e_bend = series.e_bend(), e_height = series.e_height();
+    e = e_stretch + e_mat + h * h * e_bend + pow(h, -p) * e_height;
 
     if (verbose) {
-      cout << "E_stretch = " << e_stretch << "\nE_mat = " << matrix_norm
-           << "\nSum = " << e << '\n'
-           << endl;
+      cout << "\tE_stretch = " << e_stretch << "\n\tE_mat = " << e_mat
+           << "\n\tE_bend = " << e_bend << "\n\tE_height = " << e_height
+           << "\n\tsum = " << e << endl;
     }
 
     if (best_e > e) {
@@ -223,7 +252,7 @@ void sgd(FourierSeries &series, bool verbose = false, long double max_e = 2,
 
       // If we get many correct steps in a row, our step size might be too
       // large, meaning we should decrease eta_divisor.
-      if (consecutive_correct == 8) {
+      if (consecutive_correct == 1) {
         eta_divisor /= multiplier;
         consecutive_correct = 0;
       }
@@ -239,24 +268,25 @@ void sgd(FourierSeries &series, bool verbose = false, long double max_e = 2,
 int main(int argc, char **argv) {
   unordered_map<pair<int, int>, complex<long double>, FourierSeries::pair_hash>
       coefficients;
-  long double e_max;
-  unsigned rho1, rho2;
+  long double e_max, rho1, rho2, h, p;
 
-  if (argc == 1) {
-    rho1 = 10;
-    rho2 = 20;
-    e_max = 2;
-  } else if (argc == 4) {
-    rho1 = stoul(argv[1]);
-    rho2 = stoul(argv[2]);
-    e_max = stold(argv[3]);
-  } else if (argc == 3) {
-    rho1 = stoul(argv[1]);
-    rho2 = stoul(argv[2]);
-    e_max = 2;
-  } else {
+  if (argc < 5 || argc > 6) {
     cout << "Usage: " << endl;
     exit(1);
+  }
+
+  if (argc == 6) {
+    rho1 = stold(argv[1]);
+    rho2 = stold(argv[2]);
+    h = stold(argv[3]);
+    p = stold(argv[4]);
+    e_max = stold(argv[5]);
+  } else {
+    rho1 = stold(argv[1]);
+    rho2 = stold(argv[2]);
+    h = stoul(argv[3]);
+    p = stoul(argv[4]);
+    e_max = 1;
   }
 
   coefficients = FourierSeries::random_coefficients(rho1, rho2);
@@ -264,17 +294,20 @@ int main(int argc, char **argv) {
   ofstream ofs;
   ofs.precision(15);
 
-  sgd(series, true, e_max, 10, 1.1);
+  sgd(series, h, p, true, e_max, 10, 1.1);
 
   for (size_t i = 0; i != 80; ++i) cout << '=';
   cout << endl;
 
-  long double e_stretch = series.e_stretch(), e_mat = series.e_mat();
+  cout.precision(15);
+  long double e_stretch = series.e_stretch(), e_mat = series.e_mat(),
+              e_bend = series.e_bend(), e_height = series.e_height(),
+              e = e_stretch + e_mat + h * h * e_bend + pow(h, -p) * e_height;
   cout << "Final results:" << endl;
   cout << "\tE_stretch = " << e_stretch << "\n\tE_mat = " << e_mat
-       << "\n\tsum = " << e_stretch + e_mat << endl
+       << "\n\tE_bend = " << e_bend << "\n\tE_height = " << e_height
+       << "\n\tsum = " << e << endl
        << endl;
-  // cout << series << endl;
 
   ofs.open("coefficients_" + to_string(rho1) + "_" + to_string(rho2) + ".txt");
   ofs << series << endl;

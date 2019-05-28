@@ -61,6 +61,8 @@ class FourierSeries {
   // identity matrix and half of the outer product integral.
   long double e_mat() const;
 
+  long double e_height() const;
+
   // Returns the Hessian of the series at a point. Since the series is assumed
   // to be real-valued, the Hessian is evaluated and then the real part is
   // returned.
@@ -84,7 +86,7 @@ class FourierSeries {
   // Fourier series.
   static std::unordered_map<std::pair<int, int>, std::complex<long double>,
                             pair_hash>
-  random_coefficients(unsigned, unsigned);
+  random_coefficients(long double, long double);
 };
 
 #endif

@@ -141,6 +141,17 @@ long double FourierSeries::e_mat() const {
          (1 - m[1][1] / 2) * (1 - m[1][1] / 2);
 }
 
+long double FourierSeries::e_height() const {
+  long double e = 0;
+
+  for (auto it = this->coefficients.cbegin(); it != this->coefficients.cend();
+       ++it) {
+    e += norm(it->second);
+  }
+
+  return e;
+}
+
 vector<vector<long double> > FourierSeries::hessian(
     const pair<long double, long double> &x) const {
   vector<vector<long double> > h(2, vector<long double>(2));
@@ -243,18 +254,20 @@ long double FourierSeries::e_bend() const {
 }
 
 unordered_map<pair<int, int>, complex<long double>, FourierSeries::pair_hash>
-FourierSeries::random_coefficients(unsigned rho1, unsigned rho2) {
+FourierSeries::random_coefficients(long double rho1, long double rho2) {
   mt19937 twister(chrono::system_clock::now().time_since_epoch().count());
   normal_distribution<double> normal;
   unordered_map<pair<int, int>, complex<long double>, pair_hash> coefficients;
 
-  for (int k1 = 0; k1 != rho2; ++k1) {
-    for (int k2 = 0; k2 != rho2; ++k2) {
-      // Small tolerances have been put in to ensure that every coefficient one
-      // would expect to have a value does indeed have a value (as there is a
-      // chance for small rounding error with long doubles).
-      if (rho1 * rho1 - 0.0001 <= k1 * k1 + k2 * k2 &&
-          k1 * k1 + k2 * k2 <= rho2 * rho2 + 0.0001) {
+  // Small tolerances have been put in to ensure that every coefficient one
+  // would expect to have a value does indeed have a value (as there is a
+  // chance for small rounding error with long doubles).
+  const long double EPSILON = 0.0001;
+
+  for (int k1 = 0; k1 <= rho2 + EPSILON; ++k1) {
+    for (int k2 = 0; k2 <= rho2 + EPSILON; ++k2) {
+      if (rho1 * rho1 - EPSILON <= k1 * k1 + k2 * k2 &&
+          k1 * k1 + k2 * k2 <= rho2 * rho2 + EPSILON) {
         double p = normal(twister), q = normal(twister), r = normal(twister),
                s = normal(twister);
 
