@@ -15,7 +15,7 @@ const long double PI = 3.14159265358979323846L;
 // coefficients is changed. eta_divisor controls how large of a step to take (a
 // larger value means a smaller step).
 void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
-              const vector<pair<int, int> > &non_neg_keys, long double h,
+              const vector<pair<int, int> > &half_keys, long double h,
               long double p, long double eta_divisor = 10) {
   long double eta;
 
@@ -34,11 +34,11 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
 
     // All of the derivatives must be stored at once to make the best gradient
     // approximation
-    unordered_map<pair<int, int>, long double[4], FourierSeries::pair_hash>
+    unordered_map<pair<int, int>, long double[2], FourierSeries::pair_hash>
         derivatives;
 
     // This quantity will be used to figure out how large of a step to take.
-    long double max_derivative;
+    long double max_derivative = 0;
 
     // Each mat_multiplier# is to contain the value of a summation that appears
     // in every derivative of the outer product norm. Essentially, they are
@@ -51,118 +51,78 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
       mat_multiplier2 += it->first.first * it->first.second * norm(it->second);
       mat_multiplier3 += it->first.second * it->first.second * norm(it->second);
     }
-    mat_multiplier1 = PI * PI * (2 * PI * PI * mat_multiplier1 - 1) / 2;
-    mat_multiplier2 = 2 * PI * PI * PI * PI * mat_multiplier2;
-    mat_multiplier3 = PI * PI * (2 * PI * PI * mat_multiplier3 - 1) / 2;
+    mat_multiplier1 = 8 * PI * PI * (2 * PI * PI * mat_multiplier1 - 1);
+    mat_multiplier2 = 16 * PI * PI * PI * PI * mat_multiplier2;
+    mat_multiplier3 = 8 * PI * PI * (2 * PI * PI * mat_multiplier3 - 1);
 
     // This loop calculates the derivatives of our objective function with
     // respect to p_z, q_z, r_z, and s_z for every valid choice of z.
-    for (const auto &z : non_neg_keys) {
-      // Contribution to the derivatives due to E_stretch.
-      long double ddp_stretch = 0, ddq_stretch = 0, ddr_stretch = 0,
-                  dds_stretch = 0;
+    for (const auto &z : half_keys) {
+      // Contribution to the derivatives due to each E.
+      long double ddr_stretch = 0, dds_stretch = 0;
+      long double ddr_mat = 0, dds_mat = 0;
+      long double ddr_bend = 0, dds_bend = 0;
+      long double ddr_height = 0, dds_height = 0;
 
-      // Contribution to the derivatives due to norms.
-      long double ddp_mat = 0, ddq_mat = 0, ddr_mat = 0, dds_mat = 0;
-      long double ddp_bend = 0, ddq_bend = 0, ddr_bend = 0, dds_bend = 0;
-      long double ddp_height = 0, ddq_height = 0, ddr_height = 0,
-                  dds_height = 0;
+      // Auxillary variables to make notation better.
+      complex<long double>
+          at_k_minus_z = series.coefficients.count(pair<int, int>(
+                             k.first - z.first, k.second - z.second))
+                             ? series.coefficients[pair<int, int>(
+                                   k.first - z.first, k.second - z.second)]
+                             : 0,
+          at_k_plus_z = series.coefficients.count(pair<int, int>(
+                            k.first + z.first, k.second + z.second))
+                            ? series.coefficients[pair<int, int>(
+                                  k.first + z.first, k.second + z.second)]
+                            : 0;
 
-      // Auxillary variables to make notation better. The last two letters refer
-      // to (p)lus and (m)inus and are read top coordinate then bottom
-      // coordinate.
-      pair<int, int> zpp = z, zpm = pair<int, int>(z.first, -z.second),
-                     zmp = pair<int, int>(-z.first, z.second),
-                     zmm = pair<int, int>(-z.first, -z.second);
+      complex<long double> stretch_multiplier =
+                               (long double)(k.first * z.second -
+                                             k.second * z.first) *
+                               (k.first * z.second - k.second * z.first) *
+                               scaled_hess_det_coef,
+                           mat_multiplier =
+                               (mat_multiplier1 * z.first * z.first +
+                                mat_multiplier2 * z.first * z.second +
+                                mat_multiplier3 * z.second * z.second) *
+                               series.coefficients[z],
+                           bend_multiplier =
+                               32 * PI * PI * PI * PI * h * h *
+                               (z.first * z.first + z.second * z.second) *
+                               (z.first * z.first + z.second * z.second) *
+                               series.coefficients[z],
+                           height_multiplier =
+                               2 * pow(h, -p) * series.coefficients[z];
 
-      // Represents the set (i.e. no repeats) of {zpp, zpm, zmp, zmm}.
-      vector<pair<int, int> > zs;
-      if (z.first == 0) {
-        if (z.second == 0) {
-          zs = {zpp};
-        } else {
-          zs = {zpp, zpm};
-        }
-      } else {
-        if (z.second == 0) {
-          zs = {zpp, zmp};
-        } else {
-          zs = {zpp, zpm, zmp, zmm};
-        }
-      }
+      // Calculate the E_stretch derivatives.
+      ddr_stretch +=
+          (stretch_multiplier * conj(at_k_minus_z + at_k_plus_z)).real();
+      dds_stretch +=
+          (stretch_multiplier * conj(at_k_minus_z - at_k_plus_z)).imag();
 
-      for (const auto &j : zs) {
-        complex<long double> stretch_multiplier = 0,
-                             mat_multiplier =
-                                 (mat_multiplier1 * j.first * j.first +
-                                  mat_multiplier2 * j.first * j.second +
-                                  mat_multiplier3 * j.second * j.second) *
-                                 series.coefficients[j],
-                             bend_multiplier =
-                                 2 * PI * PI * PI * PI * h * h *
-                                 (j.first * j.first + j.second * j.second) *
-                                 (j.first * j.first + j.second * j.second) *
-                                 series.coefficients[j],
-                             height_multiplier =
-                                 pow(h, -p) * series.coefficients[j];
+      // Calculate the E_mat derivatives.
+      ddr_mat += mat_multiplier.real();
+      dds_mat += mat_multiplier.imag();
 
-        // This check is necessary since we don't want to accidentally increase
-        // the size of the unordered_map coefficients.
-        if (series.coefficients.count(
-                pair<int, int>(k.first - j.first, k.second - j.second))) {
-          stretch_multiplier =
-              (long double)(k.first * j.second - k.second * j.first) *
-              (k.first * j.second - k.second * j.first) * scaled_hess_det_coef *
-              conj(series.coefficients[pair<int, int>(k.first - j.first,
-                                                      k.second - j.second)]);
-        }
+      // Calculate E_bend derivatives.
+      ddr_bend += bend_multiplier.real();
+      dds_bend += bend_multiplier.imag();
 
-        // Calculate the E_stretch derivatives.
-        ddp_stretch += stretch_multiplier.real();
-        ddq_stretch +=
-            stretch_multiplier.imag() * ((j.second <= 0) - (j.second >= 0));
-        ddr_stretch +=
-            stretch_multiplier.imag() * ((j.first <= 0) - (j.first >= 0));
-        dds_stretch += stretch_multiplier.real() *
-                       ((j.first * j.second <= 0) - (j.first * j.second >= 0));
-
-        // Calculate the E_mat derivatives.
-        ddp_mat += mat_multiplier.real();
-        ddq_mat += mat_multiplier.imag() * ((j.second <= 0) - (j.second >= 0));
-        ddr_mat += mat_multiplier.imag() * ((j.first <= 0) - (j.first >= 0));
-        dds_mat += mat_multiplier.real() *
-                   ((j.first * j.second <= 0) - (j.first * j.second >= 0));
-
-        // Calculate E_bend derivatives.
-        ddp_bend += bend_multiplier.real();
-        ddq_bend +=
-            bend_multiplier.imag() * ((j.second <= 0) - (j.second >= 0));
-        ddr_bend += bend_multiplier.imag() * ((j.first <= 0) - (j.first >= 0));
-        dds_bend += bend_multiplier.real() *
-                    ((j.first * j.second <= 0) - (j.first * j.second >= 0));
-
-        // Calculate E_height derivatives.
-        ddp_height += height_multiplier.real();
-        ddq_height +=
-            height_multiplier.imag() * ((j.second <= 0) - (j.second >= 0));
-        ddr_height +=
-            height_multiplier.imag() * ((j.first <= 0) - (j.first >= 0));
-        dds_height += height_multiplier.real() *
-                      ((j.first * j.second <= 0) - (j.first * j.second >= 0));
-      }
+      // Calculate E_height derivatives.
+      ddr_height +=
+          (z.first != 0 || z.second != 0 ? 1 : 0.5) * height_multiplier.real();
+      dds_height += height_multiplier.imag();
 
       // Calculate the actual derivatives
-      derivatives[z][0] = ddp_stretch + ddp_mat + ddp_bend + ddp_height;
-      derivatives[z][1] = ddq_stretch + ddq_mat + ddq_bend + ddq_height;
-      derivatives[z][2] = ddr_stretch + ddr_mat + ddr_bend + ddr_height;
-      derivatives[z][3] = dds_stretch + dds_mat + dds_bend + dds_height;
+      derivatives[z][0] = ddr_stretch + ddr_mat + ddr_bend + ddr_height;
+      derivatives[z][1] = dds_stretch + dds_mat + dds_bend + dds_height;
     }
 
     // Find the largest magnitude of the partial derivatives, or 1 if all
     // derivatives are smaller.
-    max_derivative = 0;
     for (auto it = derivatives.cbegin(); it != derivatives.cend(); ++it) {
-      for (size_t i = 0; i != 4; ++i) {
+      for (size_t i = 0; i != 2; ++i) {
         if (abs(it->second[i]) > max_derivative) {
           max_derivative = abs(it->second[i]);
         }
@@ -172,32 +132,18 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
     eta = 1 / max_derivative / eta_divisor;
 
     // Make the updates to the necessary coefficients.
-    for (const auto &z : non_neg_keys) {
-      pair<int, int> zpp = z, zpm = pair<int, int>(z.first, -z.second),
-                     zmp = pair<int, int>(-z.first, z.second),
-                     zmm = pair<int, int>(-z.first, -z.second);
+    for (const auto &z : half_keys) {
+      pair<int, int> neg_z = pair<int, int>(-z.first, -z.second);
 
       // These variables are notationally convenient.
-      long double &ddp = derivatives[z][0], &ddq = derivatives[z][1],
-                  &ddr = derivatives[z][2], &dds = derivatives[z][3];
+      long double &ddr = derivatives[z][0], &dds = derivatives[z][1];
 
-      series.coefficients[zpp] -=
-          eta * complex<long double>(ddp - dds, -ddq - ddr) / (long double)(4);
+      series.coefficients[z] -=
+          eta * complex<long double>(ddr, dds) / (long double)(4);
 
-      if (z.second != 0) {
-        series.coefficients[zpm] -=
-            eta * complex<long double>(ddp + dds, ddq - ddr) / (long double)(4);
-      }
-
-      if (z.first != 0) {
-        series.coefficients[zmp] -=
-            eta * complex<long double>(ddp + dds, -ddq + ddr) /
-            (long double)(4);
-      }
-
-      if (z.first != 0 && z.second != 0) {
-        series.coefficients[zmm] -=
-            eta * complex<long double>(ddp - dds, ddq + ddr) / (long double)(4);
+      if (z.first != 0 || z.second != 0) {
+        series.coefficients[neg_z] -=
+            eta * complex<long double>(ddr, -dds) / (long double)(4);
       }
     }
   }
@@ -217,9 +163,11 @@ void sgd(FourierSeries &series, long double h, long double p,
   // These key lists are made here so that we don't have to recreate them every
   // time we run an iteration.
   auto keys = series.keys();
-  auto non_neg_keys = series.non_neg_keys();
+  auto half_keys = series.half_keys();
 
-  long double eta_divisor = initial, e = series.e_stretch() + series.e_mat(),
+  long double eta_divisor = initial,
+              e = series.e_stretch() + series.e_mat() +
+                  h * h * series.e_bend() + pow(h, -p) * series.e_height(),
               best_e = e;
 
   unsigned consecutive_correct = 0;
@@ -233,7 +181,7 @@ void sgd(FourierSeries &series, long double h, long double p,
       cout << "eta_divisor = " << eta_divisor << '\n';
     }
 
-    sgd_step(series, keys, non_neg_keys, h, p, eta_divisor);
+    sgd_step(series, keys, half_keys, h, p, eta_divisor);
 
     long double e_stretch = series.e_stretch(), e_mat = series.e_mat(),
                 e_bend = series.e_bend(), e_height = series.e_height();
@@ -252,7 +200,7 @@ void sgd(FourierSeries &series, long double h, long double p,
 
       // If we get many correct steps in a row, our step size might be too
       // large, meaning we should decrease eta_divisor.
-      if (consecutive_correct == 1) {
+      if (consecutive_correct == 2) {
         eta_divisor /= multiplier;
         consecutive_correct = 0;
       }
@@ -268,7 +216,7 @@ void sgd(FourierSeries &series, long double h, long double p,
 int main(int argc, char **argv) {
   unordered_map<pair<int, int>, complex<long double>, FourierSeries::pair_hash>
       coefficients;
-  long double e_max, rho1, rho2, h, p;
+  long double max_e, rho1, rho2, h, p;
 
   if (argc < 5 || argc > 6) {
     cout << "Usage: " << endl;
@@ -280,13 +228,13 @@ int main(int argc, char **argv) {
     rho2 = stold(argv[2]);
     h = stold(argv[3]);
     p = stold(argv[4]);
-    e_max = stold(argv[5]);
+    max_e = stold(argv[5]);
   } else {
     rho1 = stold(argv[1]);
     rho2 = stold(argv[2]);
-    h = stoul(argv[3]);
-    p = stoul(argv[4]);
-    e_max = 1;
+    h = stold(argv[3]);
+    p = stold(argv[4]);
+    max_e = 1;
   }
 
   coefficients = FourierSeries::random_coefficients(rho1, rho2);
@@ -294,7 +242,7 @@ int main(int argc, char **argv) {
   ofstream ofs;
   ofs.precision(15);
 
-  sgd(series, h, p, true, e_max, 10, 1.1);
+  sgd(series, h, p, true, max_e, 10, 1.1);
 
   for (size_t i = 0; i != 80; ++i) cout << '=';
   cout << endl;

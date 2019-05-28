@@ -81,7 +81,7 @@ vector<pair<int, int> > FourierSeries::keys() const {
   return keys;
 }
 
-vector<pair<int, int> > FourierSeries::non_neg_keys() const {
+vector<pair<int, int> > FourierSeries::half_keys() const {
   vector<pair<int, int> > keys;
 
   // Reserve a bit of space to avoid having to reallocate space too much. A
@@ -91,7 +91,8 @@ vector<pair<int, int> > FourierSeries::non_neg_keys() const {
 
   for (auto it = this->coefficients.cbegin(); it != this->coefficients.cend();
        ++it) {
-    if (it->first.first >= 0 && it->first.second >= 0) {
+    if (it->first.second > 0 ||
+        (it->first.second == 0 && it->first.first >= 0)) {
       keys.push_back(it->first);
     }
   }
@@ -264,34 +265,23 @@ FourierSeries::random_coefficients(long double rho1, long double rho2) {
   // chance for small rounding error with long doubles).
   const long double EPSILON = 0.0001;
 
-  for (int k1 = 0; k1 <= rho2 + EPSILON; ++k1) {
-    for (int k2 = 0; k2 <= rho2 + EPSILON; ++k2) {
+  for (int k1 = -rho2 - EPSILON; k1 <= rho2 + EPSILON; ++k1) {
+    for (int k2 = (k1 >= 0 ? 0 : 1); k2 <= rho2 + EPSILON; ++k2) {
       if (rho1 * rho1 - EPSILON <= k1 * k1 + k2 * k2 &&
           k1 * k1 + k2 * k2 <= rho2 * rho2 + EPSILON) {
-        double p = normal(twister), q = normal(twister), r = normal(twister),
-               s = normal(twister);
+        double r = normal(twister), s = normal(twister);
 
         // Ignore extraneous values in the case that we're on an axis.
-        if (k1 == 0) {
-          r = 0;
-          s = 0;
-        }
-
-        if (k2 == 0) {
-          q = 0;
+        if (k1 == 0 && k2 == 0) {
           s = 0;
         }
 
         // Defining the coefficients like this ensures that the series will be
         // real valued.
         coefficients[pair<int, int>(k1, k2)] =
-            complex<long double>(p - s, -q - r) / (long double)4;
-        coefficients[pair<int, int>(k1, -k2)] =
-            complex<long double>(p + s, q - r) / (long double)4;
-        coefficients[pair<int, int>(-k1, k2)] =
-            complex<long double>(p + s, -q + r) / (long double)4;
+            complex<long double>(r, s) / (long double)4;
         coefficients[pair<int, int>(-k1, -k2)] =
-            complex<long double>(p - s, q + r) / (long double)4;
+            complex<long double>(r, -s) / (long double)4;
       }
     }
   }

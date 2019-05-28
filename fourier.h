@@ -51,7 +51,7 @@ class FourierSeries {
   // first quadrant, inclusive of the axes. Since the series is assumed to be
   // real-valued, this set of keys could be used to generate the entire set of
   // keys by reflecting across the x and y axes.
-  std::vector<std::pair<int, int> > non_neg_keys() const;
+  std::vector<std::pair<int, int> > half_keys() const;
 
   // Returns the integral of the outer product of the gradient of the series
   // with itself over the domain [0, 1] x [0, 1].
