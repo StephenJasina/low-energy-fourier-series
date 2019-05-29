@@ -14,23 +14,23 @@ const long double PI = 3.14159265358979323846L;
 // Do one iteration of stochastic gradient descent. Note that the unordered_map
 // coefficients is changed. eta_divisor controls how large of a step to take (a
 // larger value means a smaller step).
-void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
+void sgd_step(FourierSeries &series, vector<pair<int, int> > &sum_keys,
               const vector<pair<int, int> > &half_keys, long double h,
               long double p, long double eta_divisor = 10) {
   long double eta;
 
-  random_shuffle(keys.begin(), keys.end());
+  random_shuffle(sum_keys.begin(), sum_keys.end());
 
-  for (const auto &k : keys) {
+  for (const auto &k : sum_keys) {
     if (k.first == 0 && k.second == 0) {
       continue;
     }
 
     complex<long double> scaled_hess_det_coef =
         series.hessian_determinant_coefficient(k) *
-        (long double)(series.coefficients.size() /
-                      (2 * (k.first * k.first + k.second * k.second) *
-                       (k.first * k.first + k.second * k.second)));
+        ((long double)(sum_keys.size()) /
+         ((k.first * k.first + k.second * k.second) *
+          (k.first * k.first + k.second * k.second)));
 
     // All of the derivatives must be stored at once to make the best gradient
     // approximation
@@ -52,7 +52,7 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &keys,
       mat_multiplier3 += it->first.second * it->first.second * norm(it->second);
     }
     mat_multiplier1 = 8 * PI * PI * (2 * PI * PI * mat_multiplier1 - 1);
-    mat_multiplier2 = 16 * PI * PI * PI * PI * mat_multiplier2;
+    mat_multiplier2 = 32 * PI * PI * PI * PI * mat_multiplier2;
     mat_multiplier3 = 8 * PI * PI * (2 * PI * PI * mat_multiplier3 - 1);
 
     // This loop calculates the derivatives of our objective function with
@@ -162,7 +162,7 @@ void sgd(FourierSeries &series, long double h, long double p,
 
   // These key lists are made here so that we don't have to recreate them every
   // time we run an iteration.
-  auto keys = series.keys();
+  auto sum_keys = series.sum_keys();
   auto half_keys = series.half_keys();
 
   long double eta_divisor = initial,
@@ -181,7 +181,7 @@ void sgd(FourierSeries &series, long double h, long double p,
       cout << "eta_divisor = " << eta_divisor << '\n';
     }
 
-    sgd_step(series, keys, half_keys, h, p, eta_divisor);
+    sgd_step(series, sum_keys, half_keys, h, p, eta_divisor);
 
     long double e_stretch = series.e_stretch(), e_mat = series.e_mat(),
                 e_bend = series.e_bend(), e_height = series.e_height();
@@ -200,7 +200,7 @@ void sgd(FourierSeries &series, long double h, long double p,
 
       // If we get many correct steps in a row, our step size might be too
       // large, meaning we should decrease eta_divisor.
-      if (consecutive_correct == 2) {
+      if (consecutive_correct == 1) {
         eta_divisor /= multiplier;
         consecutive_correct = 0;
       }

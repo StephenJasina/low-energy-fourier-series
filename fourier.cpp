@@ -3,9 +3,11 @@
 #include <chrono>
 #include <cmath>
 #include <complex>
+#include <iostream>
 #include <iterator>
 #include <random>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 using namespace std;
@@ -67,18 +69,28 @@ FourierSeries::get_coefficients() const {
   return this->coefficients;
 }
 
-vector<pair<int, int> > FourierSeries::keys() const {
-  vector<pair<int, int> > keys;
+vector<pair<int, int> > FourierSeries::sum_keys() const {
+  unordered_set<pair<int, int>, pair_hash> unique_keys;
+  vector<pair<int, int> > sum_keys;
 
-  // Reserve a bit of space to avoid having to reallocate space.
-  keys.reserve(this->coefficients.size());
-
-  for (auto it = this->coefficients.cbegin(); it != this->coefficients.cend();
-       ++it) {
-    keys.push_back(it->first);
+  for (auto it1 = this->coefficients.cbegin(); it1 != this->coefficients.cend();
+       ++it1) {
+    for (auto it2 = this->coefficients.cbegin();
+         it2 != this->coefficients.cend(); ++it2) {
+      unique_keys.emplace(
+          pair<int, int>(it1->first.first + it2->first.first,
+                         it1->first.second + it2->first.second));
+    }
   }
 
-  return keys;
+  // Reserve a bit of space to avoid having to reallocate space.
+  sum_keys.reserve(unique_keys.size());
+
+  for (auto it = unique_keys.cbegin(); it != unique_keys.cend(); ++it) {
+    sum_keys.push_back(*it);
+  }
+
+  return sum_keys;
 }
 
 vector<pair<int, int> > FourierSeries::half_keys() const {

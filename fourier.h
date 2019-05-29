@@ -42,10 +42,8 @@ class FourierSeries {
   std::unordered_map<std::pair<int, int>, std::complex<long double>, pair_hash>
   get_coefficients() const;
 
-  // Returns the keys of the unordered_map coefficients. In other words, this
-  // returns a superset of the support of the Fourier coefficients of our
-  // series.
-  std::vector<std::pair<int, int> > keys() const;
+  // Returns the k values necessary to compute E_stretch.
+  std::vector<std::pair<int, int> > sum_keys() const;
 
   // Returns the keys of the unordered_map coefficients that lie within the
   // first quadrant, inclusive of the axes. Since the series is assumed to be
