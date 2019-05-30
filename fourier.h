@@ -57,7 +57,7 @@ class FourierSeries {
 
   // Returns the square of the Frobenius norm of the difference between the
   // identity matrix and half of the outer product integral.
-  long double e_mat() const;
+  long double e_mat(const long double [2][2]) const;
 
   long double e_height() const;
 

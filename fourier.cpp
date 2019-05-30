@@ -145,12 +145,13 @@ vector<vector<long double> > FourierSeries::outer_product_integral() const {
   return m;
 }
 
-long double FourierSeries::e_mat() const {
+long double FourierSeries::e_mat(const long double M[2][2]) const {
   auto m = this->outer_product_integral();
 
-  // We take slight advantage of the fact that the matrix m is symmetric.
-  return (1 - m[0][0] / 2) * (1 - m[0][0] / 2) + m[0][1] * m[0][1] / 2 +
-         (1 - m[1][1] / 2) * (1 - m[1][1] / 2);
+  // We take slight advantage of the symmetry of M and m here.
+  return (M[0][0] - m[0][0] / 2) * (M[0][0] - m[0][0] / 2) +
+         2 * (M[0][1] - m[0][1] / 2) * (M[0][1] - m[0][1] / 2) +
+         (M[1][1] - m[1][1] / 2) * (M[1][1] - m[1][1] / 2);
 }
 
 long double FourierSeries::e_height() const {
