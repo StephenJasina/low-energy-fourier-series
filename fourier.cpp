@@ -70,15 +70,13 @@ FourierSeries::get_coefficients() const {
 
 vector<pair<int, int> > FourierSeries::sum_keys() const {
   unordered_set<pair<int, int>, pair_hash> unique_keys;
-  vector<pair<int, int> > sum_keys;
+  vector<pair<int, int> > half_keys = this->half_keys(), sum_keys;
 
-  for (auto it1 = this->coefficients.cbegin(); it1 != this->coefficients.cend();
-       ++it1) {
+  for (auto it1 = half_keys.cbegin(); it1 != half_keys.cend(); ++it1) {
     for (auto it2 = this->coefficients.cbegin();
          it2 != this->coefficients.cend(); ++it2) {
-      unique_keys.emplace(
-          pair<int, int>(it1->first.first + it2->first.first,
-                         it1->first.second + it2->first.second));
+      unique_keys.emplace(pair<int, int>(it1->first + it2->first.first,
+                                         it1->second + it2->first.second));
     }
   }
 
@@ -93,22 +91,22 @@ vector<pair<int, int> > FourierSeries::sum_keys() const {
 }
 
 vector<pair<int, int> > FourierSeries::half_keys() const {
-  vector<pair<int, int> > keys;
+  vector<pair<int, int> > half_keys;
 
   // Reserve a bit of space to avoid having to reallocate space too much. A
   // denominator of 3 (as opposed to 4) is chosen to account for the values
   // lying on the axes.
-  keys.reserve(this->coefficients.size() / 3);
+  half_keys.reserve(this->coefficients.size() / 3);
 
   for (auto it = this->coefficients.cbegin(); it != this->coefficients.cend();
        ++it) {
     if (it->first.second > 0 ||
         (it->first.second == 0 && it->first.first >= 0)) {
-      keys.push_back(it->first);
+      half_keys.push_back(it->first);
     }
   }
 
-  return keys;
+  return half_keys;
 }
 
 long double FourierSeries::at(const pair<long double, long double> &x) const {

@@ -23,38 +23,30 @@ void d_e_stretch(const FourierSeries &series,
     }
 
     complex<long double> scaled_hess_det_coef =
-        series.hessian_determinant_coefficient(k) /
-        (long double)((k.first * k.first + k.second * k.second) *
-                      (k.first * k.first + k.second * k.second));
+        (long double)(2) /
+        ((k.first * k.first + k.second * k.second) *
+         (k.first * k.first + k.second * k.second)) *
+        series.hessian_determinant_coefficient(k);
 
     // This loop calculates the derivatives of our objective function with
-    // respect to p_z, q_z, r_z, and s_z for every valid choice of z.
+    // respect to r_z and s_z for every valid choice of z.
     for (const auto &z : half_keys) {
-      // Auxillary variables to make notation better.
-      complex<long double> at_k_minus_z =
-                               series.coefficients.count(pair<int, int>(
-                                   k.first - z.first, k.second - z.second))
-                                   ? series.coefficients.at(
-                                         pair<int, int>(k.first - z.first,
-                                                        k.second - z.second))
-                                   : 0,
-                           at_k_plus_z =
-                               series.coefficients.count(pair<int, int>(
-                                   k.first + z.first, k.second + z.second))
-                                   ? series.coefficients.at(
-                                         pair<int, int>(k.first + z.first,
-                                                        k.second + z.second))
-                                   : 0;
+      // Auxillary variable to make notation better.
+      complex<long double> at_z_minus_k =
+          series.coefficients.count(
+              pair<int, int>(z.first - k.first, z.second - k.second))
+              ? series.coefficients.at(
+                    pair<int, int>(z.first - k.first, z.second - k.second))
+              : 0;
 
       complex<long double> stretch_multiplier =
           (long double)(k.first * z.second - k.second * z.first) *
-          (k.first * z.second - k.second * z.first) * scaled_hess_det_coef;
+          (k.first * z.second - k.second * z.first) * scaled_hess_det_coef *
+          at_z_minus_k;
 
       // Calculate the E_stretch derivatives.
-      derivatives[z][0] +=
-          (stretch_multiplier * conj(at_k_minus_z + at_k_plus_z)).real();
-      derivatives[z][1] +=
-          (stretch_multiplier * conj(at_k_minus_z - at_k_plus_z)).imag();
+      derivatives[z][0] += stretch_multiplier.real();
+      derivatives[z][1] += stretch_multiplier.imag();
     }
   }
 }
@@ -92,7 +84,7 @@ void d_e_mat(const FourierSeries &series,
 }
 
 void d_e_bend(const FourierSeries &series,
-              const vector<pair<int, int> > &half_keys, long double h,
+              const vector<pair<int, int> > &half_keys, const long double &h,
               unordered_map<pair<int, int>, long double[2],
                             FourierSeries::pair_hash> &derivatives) {
   for (const auto &z : half_keys) {
@@ -107,28 +99,29 @@ void d_e_bend(const FourierSeries &series,
 }
 
 void d_e_height(const FourierSeries &series,
-                const vector<pair<int, int> > &half_keys, long double h,
-                long double p,
+                const vector<pair<int, int> > &half_keys, const long double &h,
+                const long double &p,
                 unordered_map<pair<int, int>, long double[2],
                               FourierSeries::pair_hash> &derivatives) {
   for (const auto &z : half_keys) {
     complex<long double> height_multiplier =
         2 * pow(h, -p) * series.coefficients.at(z);
 
+    // The ternary operator here is guarding against the case where we have a
+    // constant term in the Fourier series.
     derivatives[z][0] +=
         (z.first != 0 || z.second != 0 ? 1 : 0.5) * height_multiplier.real();
     derivatives[z][1] += height_multiplier.imag();
   }
 }
 
-void take_step(FourierSeries &series,
-               unordered_map<pair<int, int>, long double[2],
-                             FourierSeries::pair_hash> &derivatives,
-               long double eta_divisor = 1) {
+void update_coefficients(FourierSeries &series, long double &h,
+                         unordered_map<pair<int, int>, long double[2],
+                                       FourierSeries::pair_hash> &derivatives,
+                         long double eta_divisor = 1) {
   long double eta, max_derivative = 0;
 
-  // Find the largest magnitude of the partial derivatives, or 1 if all
-  // derivatives are smaller.
+  // Find the largest magnitude of the partial derivatives.
   for (auto it = derivatives.cbegin(); it != derivatives.cend(); ++it) {
     for (size_t i = 0; i != 2; ++i) {
       if (abs(it->second[i]) > max_derivative) {
@@ -156,12 +149,16 @@ void take_step(FourierSeries &series,
   }
 }
 
+void update_h(FourierSeries &series, long double &h, const long double &p) {
+  h = pow((p * series.e_height()) / (2 * series.e_bend()), 1 / (p + 2));
+}
+
 // Do one iteration of stochastic gradient descent. Note that the
 // unordered_map coefficients is changed. eta_divisor controls how large of
 // a step to take (a larger value means a smaller step).
 void sgd_step(FourierSeries &series, vector<pair<int, int> > &sum_keys,
               const vector<pair<int, int> > &half_keys,
-              const long double M[2][2], long double h, long double p,
+              const long double M[2][2], long double &h, const long double &p,
               long double eta_divisor = 1) {
   random_shuffle(sum_keys.begin(), sum_keys.end());
 
@@ -182,7 +179,7 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &sum_keys,
         derivatives;
 
     // This loop calculates the derivatives of our objective function with
-    // respect to p_z, q_z, r_z, and s_z for every valid choice of z.
+    // respect to r_z and s_z for every valid choice of z.
     for (const auto &z : half_keys) {
       // Auxillary variables to make notation better.
       complex<long double>
@@ -212,7 +209,7 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &sum_keys,
     d_e_bend(series, half_keys, h, derivatives);
     d_e_height(series, half_keys, h, p, derivatives);
 
-    take_step(series, derivatives, eta_divisor);
+    update_coefficients(series, h, derivatives, eta_divisor);
   }
 }
 
@@ -221,7 +218,7 @@ void sgd_step(FourierSeries &series, vector<pair<int, int> > &sum_keys,
 // larger value means a smaller step).
 void gd_step(FourierSeries &series, vector<pair<int, int> > &sum_keys,
              const vector<pair<int, int> > &half_keys,
-             const long double M[2][2], long double h, long double p,
+             const long double M[2][2], long double &h, const long double &p,
              long double eta_divisor = 10) {
   unordered_map<pair<int, int>, long double[2], FourierSeries::pair_hash>
       derivatives;
@@ -231,7 +228,8 @@ void gd_step(FourierSeries &series, vector<pair<int, int> > &sum_keys,
   d_e_bend(series, half_keys, h, derivatives);
   d_e_height(series, half_keys, h, p, derivatives);
 
-  take_step(series, derivatives, eta_divisor);
+  update_coefficients(series, h, derivatives, eta_divisor);
+  // update_h(series, h, p);
 }
 
 // Do many iterations of  gradient descent. Repeat until either the objective
@@ -239,7 +237,7 @@ void gd_step(FourierSeries &series, vector<pair<int, int> > &sum_keys,
 // variable initial is the beginning value of eta_divisor. The variable initial
 // is how much to multiply (divide) eta_divisor by when the current value is
 // doing poorly (well).
-void gd(FourierSeries &series, long double h, long double p,
+void gd(FourierSeries &series, long double &h, const long double &p,
         bool verbose = false, long double max_e = 2, long double initial = 10,
         long double multiplier = 1.1, const long double M[2][2] = ID) {
   auto best_coefficients = series.coefficients;
@@ -252,7 +250,7 @@ void gd(FourierSeries &series, long double h, long double p,
   long double eta_divisor = initial,
               e = series.e_stretch() + series.e_mat(ID) +
                   h * h * series.e_bend() + pow(h, -p) * series.e_height(),
-              best_e = e;
+              best_e = e, best_h = h;
 
   unsigned consecutive_correct = 0;
 
@@ -281,12 +279,13 @@ void gd(FourierSeries &series, long double h, long double p,
     if (verbose) {
       cout << "\tE_stretch = " << e_stretch << "\n\tE_mat = " << e_mat
            << "\n\tE_bend = " << e_bend << "\n\tE_height = " << e_height
-           << "\n\tsum = " << e << endl;
+           << "\n\th = " << h << "\n\tsum = " << e << endl;
     }
 
-    if (best_e > e) {
+    if (best_e > e * 1.0001) {
       best_coefficients = series.coefficients;
       best_e = e;
+      best_h = h;
       ++consecutive_correct;
 
       // If we get many correct steps in a row, our step size might be too
@@ -301,6 +300,7 @@ void gd(FourierSeries &series, long double h, long double p,
     }
 
     series.coefficients = best_coefficients;
+    h = best_h;
   }
 }
 
@@ -346,7 +346,7 @@ int main(int argc, char **argv) {
   cout << "Final results:" << endl;
   cout << "\tE_stretch = " << e_stretch << "\n\tE_mat = " << e_mat
        << "\n\tE_bend = " << e_bend << "\n\tE_height = " << e_height
-       << "\n\tsum = " << e << endl
+       << "\n\th = " << h << "\n\tsum = " << e << endl
        << endl;
 
   // ofs.open("coefficients_" + to_string(rho1) + "_" + to_string(rho2) +
@@ -360,10 +360,11 @@ int main(int argc, char **argv) {
   ofs << "{{" << M[0][0] << ", " << M[0][1] << "}, {" << M[1][0] << ", "
       << M[1][1] << "}}" << endl;
 
-  ofs << "Final results:" << endl << "\tE_stretch = " << e_stretch << "\n\tE_mat = " << e_mat
-       << "\n\tE_bend = " << e_bend << "\n\tE_height = " << e_height
-       << "\n\tsum = " << e << endl
-       << endl;
+  ofs << "# Final results:" << endl
+      << "#\t  E_stretch = " << e_stretch << "\n#\t  E_mat = " << e_mat
+      << "\n#\t  E_bend = " << e_bend << "\n#\t  E_height = " << e_height
+      << "\n#\t  h = " << h << "\n#\t  sum = " << e << endl
+      << endl;
 
   ofs << series << endl;
   ofs.close();
