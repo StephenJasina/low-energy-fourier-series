@@ -73,15 +73,19 @@ if len(sys.argv) < 2:
     print("Must supply file")
     sys.exit()
 
-x1 = np.arange(0, 2, .005)
-x2 = np.arange(0, 2, .005)
+x1 = np.arange(0, 2, .01)
+x2 = np.arange(0, 2, .01)
 
 with open(sys.argv[1], 'r') as file:
     coefficients = eval(file.read())
 
-    for k, ak in coefficients.items():
-        if abs(ak) > 1e-4:
-            print(k, ak)
+    for k, ak in sorted(coefficients.items(), key = lambda i : -abs(i[1])):
+        if abs(ak) > 1e-3:
+            print('{0:<24}{1}'.format((k[0]**2 + k[1]**2)**0.5, abs(ak)))
+        # Uncomment the following two lines to ignore coefficients that are too
+        # small
+        """else:
+            del(coefficients[k])"""
 
     series = FourierSeries(coefficients)
 

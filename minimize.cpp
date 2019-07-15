@@ -279,7 +279,7 @@ void gd(FourierSeries &series, long double &h, const long double &p,
     if (verbose) {
       cout << "\tE_stretch = " << e_stretch << "\n\tE_mat = " << e_mat
            << "\n\tE_bend = " << e_bend << "\n\tE_height = " << e_height
-           << "\n\th = " << h << "\n\tsum = " << e << endl;
+           << "\n\tsum = " << e << endl;
     }
 
     if (best_e > e * 1.0001) {
@@ -311,7 +311,7 @@ int main(int argc, char **argv) {
   auto M = ID;
 
   if (argc < 5 || argc > 6) {
-    cout << "Usage: " << endl;
+    cout << "Usage: " << argv[0] << " rho1 rho2 h p [max_e]" << endl;
     exit(1);
   }
 
@@ -346,7 +346,7 @@ int main(int argc, char **argv) {
   cout << "Final results:" << endl;
   cout << "\tE_stretch = " << e_stretch << "\n\tE_mat = " << e_mat
        << "\n\tE_bend = " << e_bend << "\n\tE_height = " << e_height
-       << "\n\th = " << h << "\n\tsum = " << e << endl
+       << "\n\tsum = " << e << endl
        << endl;
 
   // ofs.open("coefficients_" + to_string(rho1) + "_" + to_string(rho2) +
